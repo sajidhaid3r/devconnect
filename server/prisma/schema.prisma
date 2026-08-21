@@ -1,0 +1,140 @@
+// DevConnect — Database Schema
+// Matches PDF Day 2: Users, Projects, BlogPosts, Skills, Endorsements, Connections
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  username      String   @unique
+  passwordHash  String?
+  githubId      String?  @unique
+  fullName      String
+  bio           String?
+  avatarUrl     String?
+  location      String?
+  githubUrl     String?
+  linkedinUrl   String?
+  websiteUrl    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  projects             Project[]
+  posts                BlogPost[]
+  skills               UserSkill[]
+  endorsementsGiven    Endorsement[]  @relation("EndorsementsGiven")
+  endorsementsReceived Endorsement[]  @relation("EndorsementsReceived")
+  connectionsSent      Connection[]   @relation("ConnectionsSent")
+  connectionsReceived  Connection[]   @relation("ConnectionsReceived")
+  notifications        Notification[]
+
+  @@index([location])
+}
+
+model Skill {
+  id   String @id @default(uuid())
+  name String @unique
+
+  users        UserSkill[]
+  endorsements Endorsement[]
+}
+
+model UserSkill {
+  id      String @id @default(uuid())
+  userId  String
+  skillId String
+  user    User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skill   Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, skillId])
+}
+
+model Project {
+  id          String   @id @default(uuid())
+  ownerId     String
+  owner       User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  title       String
+  description String
+  techStack   String[]
+  repoUrl     String?
+  liveUrl     String?
+  imageUrl    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([ownerId])
+}
+
+model BlogPost {
+  id              String   @id @default(uuid())
+  authorId        String
+  author          User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  title           String
+  slug            String   @unique
+  contentMarkdown String
+  excerpt         String
+  coverImageUrl   String?
+  published       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([authorId])
+  @@index([published])
+}
+
+model Endorsement {
+  id         String   @id @default(uuid())
+  skillId    String
+  skill      Skill    @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  fromUserId String
+  fromUser   User     @relation("EndorsementsGiven", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUserId   String
+  toUser     User     @relation("EndorsementsReceived", fields: [toUserId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([skillId, fromUserId, toUserId])
+}
+
+enum ConnectionStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+model Connection {
+  id          String           @id @default(uuid())
+  requesterId String
+  requester   User             @relation("ConnectionsSent", fields: [requesterId], references: [id], onDelete: Cascade)
+  addresseeId String
+  addressee   User             @relation("ConnectionsReceived", fields: [addresseeId], references: [id], onDelete: Cascade)
+  status      ConnectionStatus @default(PENDING)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@unique([requesterId, addresseeId])
+}
+
+enum NotificationType {
+  CONNECTION_REQUEST
+  CONNECTION_ACCEPTED
+  ENDORSEMENT
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  message   String
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@index([userId, read])
+}
